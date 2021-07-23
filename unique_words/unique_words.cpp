@@ -3,6 +3,7 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 
 #include <functional>
+#include <numeric>
 #include <iostream>
 #include <iterator>
 #include <vector>
@@ -136,7 +137,6 @@ size_t count_unique_words(const std::basic_string<char_t>& sFile) {
       }
 
       data += region + uOffset;
-
    }
       
    for (auto&& worker : workers)
@@ -146,17 +146,26 @@ size_t count_unique_words(const std::basic_string<char_t>& sFile) {
          worker.join();
       }
    }
-#else
-   process_portion_data(data, end, vec_unique_words[0]);
-#endif
+   
+   size_t uCount = std::accumulate(vec_unique_words.begin(), vec_unique_words.end(), (uint64_t)0,
+      [](const std::size_t uPrev, const auto& unique_words) { return uint64_t(uPrev) + unique_words.size(); });
 
-   size_t uCount = 0;
+   std::set< std::basic_string<char_t>> result;
+
    for (auto&& unique_words : vec_unique_words)
-   {
-      uCount += unique_words.size();
+   {      
+      result.merge(unique_words);
    }
 
-   return uCount;
+   return result.size();
+
+#else
+   std::set< std::basic_string<char_t>> unique_words;
+
+   process_portion_data(data, end, unique_words);
+
+   return unique_words.size();
+#endif
 }
 
 #else
