@@ -111,17 +111,13 @@ size_t count_unique_words(const std::basic_string<char_t>& sFile) {
    boost::iostreams::mapped_file mfile(sFile, boost::iostreams::mapped_file::readonly);
    auto data = mfile.const_data(), end = data + mfile.size();
 
-#ifdef _EXPEREMENTIAL_BASIC_STRING_
-   std::set< NString::_basic_string_proxy<char_t>> unique_words;
-#else
-   NSharedConteiners::set< std::basic_string<char_t>> unique_words;
-#endif
-
 #ifdef _ASYNCH_FEATURE_IMPLEMENTAION
    const auto processor_count = std::thread::hardware_concurrency();   
    auto region = (end - data) / processor_count;
    std::vector<std::thread> workers;
   
+   std::vector<std::set< std::basic_string<char_t>> > vec_unique_words(processor_count);
+
    for (unsigned i = 0; i < processor_count; ++i)
    {
       size_t uOffset = 0;
@@ -132,11 +128,11 @@ size_t count_unique_words(const std::basic_string<char_t>& sFile) {
 
          while (buffer && buffer != end && *buffer != ' ' && *buffer != '\r' && *buffer != '\n') { buffer++; uOffset++; }
 
-         workers.push_back(std::thread(process_portion_data<char, NSharedConteiners::set< std::basic_string<char_t>>>, data, data + region + uOffset, std::ref(unique_words)));
+         workers.push_back(std::thread(process_portion_data<char, std::set< std::basic_string<char_t>>>, data, data + region + uOffset, std::ref(vec_unique_words[i])));
       }
       else
       {
-         workers.push_back(std::thread(process_portion_data<char, NSharedConteiners::set< std::basic_string<char_t>>>, data, end, std::ref(unique_words)));
+         workers.push_back(std::thread(process_portion_data<char, std::set< std::basic_string<char_t>>>, data, end, std::ref(vec_unique_words[i])));
       }
 
       data += region + uOffset;
@@ -151,9 +147,16 @@ size_t count_unique_words(const std::basic_string<char_t>& sFile) {
       }
    }
 #else
-   process_portion_data(data, end, unique_words);
+   process_portion_data(data, end, vec_unique_words[0]);
 #endif
-   return unique_words.size();
+
+   size_t uCount = 0;
+   for (auto&& unique_words : vec_unique_words)
+   {
+      uCount += unique_words.size();
+   }
+
+   return uCount;
 }
 
 #else
